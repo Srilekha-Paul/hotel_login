@@ -2,10 +2,14 @@ import { RouterProvider } from "react-router-dom";
 import router from "./routes/router";
 import { Toaster } from "react-hot-toast";
 import PopupReminder from "./components/common/popupReminder/PopupReminder";
-import AutoRecaptcha from "./components/common/AutoRecaptcha";
+// import AutoRecaptcha from "./components/common/AutoRecaptcha";
+import { AutoRecaptcha } from "./components/common/AutoRecaptcha";
+
+
 import { GoogleReCaptchaProvider } from "react-google-recaptcha-v3";
 
-const RECAPTCHA_SITE_KEY = process.env.GOOGLE_RECAPTCHA_SITE_KEY;
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_GOOGLE_RECAPTCHA_SITE_KEY;
+
 
 function App() {
   return (

@@ -1,55 +1,132 @@
-import { useEffect, useCallback } from "react";
-import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
+import { useEffect, useRef, useState } from 'react';
 
-interface AutoRecaptchaProps {
-  onVerify?: (token: string) => void;
-  action?: string;
+// Get the site key from environment variables
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '';
+
+// Declare grecaptcha type
+declare global {
+  interface Window {
+    grecaptcha: any;
+    onRecaptchaLoad: () => void;
+  }
 }
 
-const AutoRecaptcha: React.FC<AutoRecaptchaProps> = ({ 
-  onVerify, 
-  action = "page_view" 
-}) => {
-  const { executeRecaptcha } = useGoogleReCaptcha();
+export function AutoRecaptcha() {
+  const [isReady, setIsReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const recaptchaRef = useRef<HTMLDivElement>(null);
 
-  const handleReCaptchaVerify = useCallback(async () => {
-    if (!executeRecaptcha) {
-      console.warn("Execute recaptcha not yet available");
+  useEffect(() => {
+    // Skip if no valid site key
+    if (!RECAPTCHA_SITE_KEY || RECAPTCHA_SITE_KEY === 'your_recaptcha_site_key_here') {
+      console.warn('⚠️ ReCaptcha disabled: No valid site key provided. Add VITE_RECAPTCHA_SITE_KEY to your .env file');
       return;
     }
 
-    try {
-      const token = await executeRecaptcha(action);
-      
-      // Store token in sessionStorage
-      sessionStorage.setItem("recaptcha_token", token);
-      
-      // Call callback if provided
-      if (onVerify) {
-        onVerify(token);
+    // Load ReCaptcha script
+    const loadRecaptchaScript = () => {
+      // Check if script already exists
+      if (document.querySelector('script[src*="recaptcha"]')) {
+        checkRecaptchaReady();
+        return;
       }
 
-      // Optional: Send token to your backend for verification
-      // await verifyRecaptchaToken(token);
+      const script = document.createElement('script');
+      script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
+      script.async = true;
+      script.defer = true;
       
-    } catch (error) {
-      console.error("ReCaptcha verification error:", error);
-    }
-  }, [executeRecaptcha, action, onVerify]);
+      script.onload = () => {
+        checkRecaptchaReady();
+      };
+      
+      script.onerror = () => {
+        setError('Failed to load ReCaptcha script');
+        console.error('Failed to load ReCaptcha script');
+      };
 
-  useEffect(() => {
-    handleReCaptchaVerify();
+      document.head.appendChild(script);
+    };
 
-    // Refresh token every 2 minutes (ReCaptcha tokens expire after 2 minutes)
-    const interval = setInterval(() => {
-      handleReCaptchaVerify();
-    }, 110000); // 1 minute 50 seconds
+    // Check if ReCaptcha is ready
+    const checkRecaptchaReady = () => {
+      const checkInterval = setInterval(() => {
+        if (window.grecaptcha && window.grecaptcha.ready) {
+          clearInterval(checkInterval);
+          window.grecaptcha.ready(() => {
+            setIsReady(true);
+            executeRecaptcha();
+          });
+        }
+      }, 100);
 
-    return () => clearInterval(interval);
-  }, [handleReCaptchaVerify]);
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!isReady) {
+          console.warn('ReCaptcha failed to load within timeout');
+        }
+      }, 10000);
+    };
 
-  // This component doesn't render anything
-  return null;
-};
+    // Execute ReCaptcha
+    const executeRecaptcha = async () => {
+      try {
+        if (!window.grecaptcha || !window.grecaptcha.execute) {
+          console.log('Execute recaptcha not yet available');
+          return;
+        }
 
-export default AutoRecaptcha;
+        const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { 
+          action: 'submit' 
+        });
+        
+        console.log('✅ ReCaptcha token generated successfully');
+        
+        // You can store the token or dispatch it to your form
+        // Example: localStorage.setItem('recaptcha_token', token);
+        // Or dispatch to Redux/Context
+        
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errorMessage);
+        console.error('ReCaptcha verification error:', err);
+      }
+    };
+
+    loadRecaptchaScript();
+
+    // Cleanup
+    return () => {
+      setIsReady(false);
+      setError(null);
+    };
+  }, []);
+
+  // Don't render anything if no valid key (silent failure for development)
+  if (!RECAPTCHA_SITE_KEY || RECAPTCHA_SITE_KEY === 'your_recaptcha_site_key_here') {
+    return null;
+  }
+
+  // Optional: Show error in development mode
+  if (error && import.meta.env.DEV) {
+    return (
+      <div style={{ 
+        padding: '10px', 
+        backgroundColor: '#fff3cd', 
+        border: '1px solid #ffc107',
+        borderRadius: '4px',
+        margin: '10px 0',
+        fontSize: '14px'
+      }}>
+        ⚠️ ReCaptcha Error: {error}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={recaptchaRef} className="recaptcha-container">
+      {/* ReCaptcha badge will be automatically inserted here */}
+    </div>
+  );
+}

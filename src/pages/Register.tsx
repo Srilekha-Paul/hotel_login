@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
-import AuthLayout from "../../components/auth/AuthLayout";
+import AuthLayout from "../components/auth/AuthLayout";
 
 type UserType = "Buyer" | "Owner" | "Agent" | "Builder";
 
